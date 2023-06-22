@@ -85,13 +85,3 @@ services:
     ports:
       - "5000:5000"
 
-  todo-service:
-    image: "todo-service:latest"
-    networks:
-      - net0
-    environment:
-      SPRING_KAFKA_APPLICATION_ID: todo-service
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka.internal.net:29092
-      TASK_COMMANDS_TOPIC: task-commands
-      TASK_SNAPSHOTS_TOPIC: task-snapshots
-      TASK_REPLIES_TOPIC: task-replies
