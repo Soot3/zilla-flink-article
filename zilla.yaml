@@ -1,0 +1,111 @@
+name: Example
+vaults: {}
+bindings:
+  tcp_serverab9279f6-00aa-40a9-b10a-268c5ebfd800:
+    type: tcp
+    kind: server
+    options:
+      host: 0.0.0.0
+      port: 5000
+    exit: http_serverab9279f6-00aa-40a9-b10a-268c5ebfd800
+  http_serverab9279f6-00aa-40a9-b10a-268c5ebfd800:
+    type: http
+    kind: server
+    options:
+      access-control:
+        policy: cross-origin
+    routes:
+      - when:
+          - headers:
+              :method: GET
+              :path: /tasks
+        exit: sse_serverab9279f6-00aa-40a9-b10a-268c5ebfd800
+      - when:
+          - headers:
+              :method: POST
+              :path: /tasks
+          - headers:
+              :method: PUT
+              :path: /tasks/*
+          - headers:
+              :method: DELETE
+              :path: /tasks/*
+        exit: http-kafka_proxyab9279f6-00aa-40a9-b10a-268c5ebfd800
+  sse_serverab9279f6-00aa-40a9-b10a-268c5ebfd800:
+    type: sse
+    kind: server
+    exit: sse-kafka_proxyab9279f6-00aa-40a9-b10a-268c5ebfd800
+  sse-kafka_proxyab9279f6-00aa-40a9-b10a-268c5ebfd800:
+    type: sse-kafka
+    kind: proxy
+    routes:
+      - when:
+          - path: /tasks
+        exit: kafka_cache_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+        with:
+          event:
+            id: '["${base64(key)}","${etag}"]'
+          topic: task-snapshots
+  http-kafka_proxyab9279f6-00aa-40a9-b10a-268c5ebfd800:
+    type: http-kafka
+    kind: proxy
+    routes:
+      - when:
+          - method: POST
+            path: /tasks
+        exit: kafka_cache_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+        with:
+          capability: produce
+          reply-to: task-replies
+          topic: task-commands
+          key: ${idempotencyKey}
+          overrides:
+            zilla:domain-model: CreateTaskCommand
+      - when:
+          - method: PUT
+            path: /tasks/{id}
+        exit: kafka_cache_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+        with:
+          capability: produce
+          reply-to: task-replies
+          topic: task-commands
+          key: ${params.id}
+          overrides:
+            zilla:domain-model: RenameTaskCommand
+      - when:
+          - method: DELETE
+            path: /tasks/{id}
+        exit: kafka_cache_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+        with:
+          capability: produce
+          reply-to: task-replies
+          topic: task-commands
+          key: ${params.id}
+          overrides:
+            zilla:domain-model: DeleteTaskCommand
+  kafka_cache_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c:
+    type: kafka
+    kind: cache_client
+    exit: kafka_cache_serverda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+  kafka_cache_serverda6b9d8f-0846-4b2b-8ed6-b8db5605e50c:
+    type: kafka
+    kind: cache_server
+    options:
+      bootstrap:
+        - task-replies
+        - task-snapshots
+    exit: kafka_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+  kafka_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c:
+    type: kafka
+    kind: client
+    exit: tcp_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c
+  tcp_clientda6b9d8f-0846-4b2b-8ed6-b8db5605e50c:
+    type: tcp
+    kind: client
+    options:
+      host: kafka.internal.net
+      port: 29092
+    routes:
+      - when:
+          - cidr: 0.0.0.0/0
+guards: {}
